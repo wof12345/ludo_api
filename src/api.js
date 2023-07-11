@@ -6,6 +6,8 @@ const Crypto = require("crypto");
 
 const db = require("./connection");
 
+require("dotenv").config();
+const port = process.env.PORT;
 //init db connection
 // db.client.connect();
 
@@ -62,4 +64,4 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(3000);
+server.listen(port);
