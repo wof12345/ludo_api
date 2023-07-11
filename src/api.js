@@ -4,10 +4,15 @@ const app = express();
 const server = http.createServer(app);
 const Crypto = require("crypto");
 
-const db = require("./connection");
+// const db = require("./connection");
 
 require("dotenv").config();
 const port = process.env.PORT;
+// const url = process.env.DATABASE;
+// const { MongoClient } = require("mongodb");
+
+// exports.client = new MongoClient(url);
+
 //init db connection
 // db.client.connect();
 
