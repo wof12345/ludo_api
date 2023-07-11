@@ -1,4 +1,4 @@
 {
   "verbose": true,
-  "watch": ["./src/api.js,./public/*"]
+  "watch": ["./src/*"]
 }
