@@ -16,7 +16,7 @@ const port = process.env.PORT;
 //init db connection
 // db.client.connect();
 
-let clients = {};
+let lobbies = {};
 let users = {};
 
 const io = require("socket.io")(server, {
@@ -31,10 +31,24 @@ function randomString(size = 21) {
 
 io.on("connection", (socket) => {
   socket.on("addPlayer", (data) => {
-    clients[socket.id] = { playerId: randomString(5), playerName: data };
-    console.log(clients, "player", data);
+    if (!lobbies[data.lobby]) return;
 
-    io.emit("playerUpdate", clients);
+    let newPlayer = {
+      playerId: randomString(5),
+      name: data.name ?? randomString(5),
+      lobby: data.lobby ?? "",
+      connectionId: socket.id,
+    };
+
+    lobbies[data.lobby][socket.id] = newPlayer;
+
+    // io.emit("playerUpdate", [lobbies, lobbies[socket.id]]);
+
+    const currentLobby = lobbies[data.lobby];
+    console.log(currentLobby, "los");
+
+    for (let socketId in currentLobby)
+      io.to(socketId).emit("playerUpdate", [currentLobby, socket.id]);
   });
 
   socket.on("addUser", (data) => {
@@ -45,27 +59,55 @@ io.on("connection", (socket) => {
       name: data.name ?? randomString(5),
       lobby: data.lobby ?? "",
     };
-    console.log(users, "users");
+    // console.log(users, "users");
 
-    io.emit("userUpdate", users);
+    socket.broadcast.emit("userUpdate", users);
   });
 
   socket.on("roll", (data) => {
-    console.log("roll", data);
+    // console.log("roll", data);
 
-    socket.broadcast.emit("roll", data);
+    let currentLobby = lobbies[data.lobby];
+
+    for (let socketId in currentLobby) {
+      if (socket.id !== socketId) io.to(socketId).emit("roll", data.roll);
+      console.log(socketId);
+    }
   });
 
   socket.on("lobby", (data) => {
     let lobby = randomString(20);
 
+    lobbies[lobby] = {};
+
     socket.emit("assignLobby", lobby);
   });
 
+  socket.on("destroyLobby", (data) => {
+    delete lobbies[data];
+
+    console.log(lobbies);
+
+    io.emit("lobbyDeath", {});
+  });
+
   socket.on("disconnect", (data) => {
-    io.emit("disconnected", clients[socket.id]);
-    delete clients[socket.id];
+    const user = users[socket.id];
+    const lobby = user?.lobby || "";
+
+    // console.log(user, "dis");
+    io.emit("disconnected", user);
+
     delete users[socket.id];
+
+    if (lobby !== "" && lobbies[lobby]) delete lobbies[lobby][socket.id];
+
+    const currentLobby = lobbies[lobby];
+    if (lobby !== "" && lobbies[lobby])
+      for (let socketId in currentLobby)
+        io.to(socketId).emit("playerUpdate", [currentLobby, socket.id]);
+
+    socket.broadcast.emit("userUpdate", users);
   });
 });
 
