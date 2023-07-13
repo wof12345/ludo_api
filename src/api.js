@@ -59,27 +59,21 @@ io.on("connection", (socket) => {
 
   socket.on("synchronize", (data) => {
     const currentLobby = lobbies[data.lobby];
-    for (let socketId in currentLobby) {
-      synchronize(socket, socketId, data);
-    }
+    for (let socketId in currentLobby) synchronize(socket, socketId, data);
   });
 
   socket.on("addUser", (data) => {
-    // console.log(data, "add");
-
     users[socket.id] = {
       playerId: randomString(5),
       name: data.name ?? randomString(5),
       lobby: data.lobby ?? "",
+      connectionId: socket.id,
     };
-    // console.log(users, "users");
 
-    socket.broadcast.emit("userUpdate", users);
+    io.emit("userUpdate", users);
   });
 
   socket.on("roll", (data) => {
-    // console.log("roll", data);
-
     let currentLobby = lobbies[data.lobby];
 
     if (!currentLobby) return;
@@ -96,7 +90,6 @@ io.on("connection", (socket) => {
 
   socket.on("state", (data) => {
     state[data.lobby] = data;
-    // console.log(data, "state");
   });
 
   socket.on("lobby", (data) => {
@@ -106,6 +99,13 @@ io.on("connection", (socket) => {
     state[lobby] = [];
 
     socket.emit("assignLobby", lobby);
+  });
+
+  socket.on("invite", (data) => {
+    console.log(data);
+
+    for (let socketId in users)
+      if (socketId !== socket.id) io.to(socketId).emit("invited", data);
   });
 
   socket.on("destroyLobby", (data) => {
@@ -119,7 +119,6 @@ io.on("connection", (socket) => {
     const user = users[socket.id];
     const lobby = user?.lobby || "";
 
-    // console.log(user, "dis");
     io.emit("disconnected", user);
 
     delete users[socket.id];
