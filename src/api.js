@@ -93,7 +93,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("lobby", (data) => {
-    let lobby = randomString(20);
+    let lobby = data.lobby || randomString(20);
 
     lobbies[lobby] = {};
     state[lobby] = [];
@@ -101,11 +101,23 @@ io.on("connection", (socket) => {
     socket.emit("assignLobby", lobby);
   });
 
-  socket.on("invite", (data) => {
-    console.log(data);
+  socket.on("room", (data) => {
+    const lobby = data.lobby || randomString(20);
 
-    for (let socketId in users)
-      if (socketId !== socket.id) io.to(socketId).emit("invited", data);
+    lobbies[lobby] = {};
+    state[lobby] = [];
+
+    io.to(data.sender).emit("invited", {
+      reciever: data.reciever || null,
+      lobby: lobby,
+    });
+
+    if (data.reciever)
+      io.to(data.reciever).emit("invitation", {
+        sender: data.sender,
+        name: data.name,
+        lobby: lobby,
+      });
   });
 
   socket.on("destroyLobby", (data) => {
