@@ -127,6 +127,13 @@ io.on("connection", (socket) => {
     delete lobbies[data];
   });
 
+  socket.on("resetLobby", (data) => {
+    const currentLobby = lobbies[data];
+    state[data] = [];
+
+    for (let socketId in currentLobby) io.to(socketId).emit("restart", {});
+  });
+
   socket.on("disconnect", (data) => {
     const user = users[socket.id];
     const lobby = user?.lobby || "";
