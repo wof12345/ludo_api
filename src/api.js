@@ -4,14 +4,12 @@ const app = express();
 const server = http.createServer(app);
 const Crypto = require("crypto");
 
-const db = require("./connection");
+const userService = require("./services/user");
+const lobbyService = require("./services/lobby");
+
 const port = process.env.PORT;
 
-//init db connection
-// db.client.connect();
-
 let lobbies = {};
-let users = {};
 let state = {};
 
 const io = require("socket.io")(server, {
@@ -26,79 +24,126 @@ function randomString(size = 21) {
   return Crypto.randomBytes(size).toString("base64").slice(0, size);
 }
 
-function synchronize(socket, socketId, data) {
-  const currentLobbyState = state[data.lobby];
-  io.to(socketId).emit("sync", currentLobbyState);
+async function synchronize(socket, data) {
+  // console.log(data,'sdasf');
+
+  if (!data) return;
+  const users = await userService.findUser({ lobby: data.lobby });
+
+  users.forEach((user) => {
+    let socketId = user.connectionId;
+    if (socket !== socket.id) io.to(socketId).emit("sync", data.state);
+  });
+}
+
+async function updateUser(socket, data) {
+  let user = {
+    name: data.name ?? randomString(5),
+    lobby: data.lobby,
+    active: data.active,
+    connectionId: socket.id,
+    updateTime: new Date().getTime(),
+  };
+
+  const res = await userService.updateUser(user);
+
+  const users = await userService.findUser({ lobby: data.lobby, active: true });
+
+  users.forEach((client) => {
+    io.to(client.connectionId).emit("userUpdate", { users: users, user: user });
+  });
+}
+
+async function updateLobby(socket, lobbyData) {
+  const updateObj = lobbyData.data || {};
+  const res = await lobbyService.updateLobby(updateObj, {
+    lobby: lobbyData.lobby,
+  });
+
+  const lobby = await lobbyService.findLobby({ lobby: lobbyData.lobby });
+
+  socket.emit("lobbyInfo", lobby);
+}
+
+async function updateState(socket, lobbyData) {
+  const updateObj = { state: lobbyData.state } || {};
+  const res = await lobbyService.updateLobby(updateObj, {
+    lobby: lobbyData.lobby,
+  });
 }
 
 io.on("connection", (socket) => {
-  socket.on("addPlayer", (data) => {
-    if (!lobbies[data.lobby]) return;
+  socket.on("addUser", async (data) => {
+    let exists = false;
 
-    let newPlayer = {
-      playerId: randomString(5),
-      name: data.name == "" ? randomString(5) : data.name,
-      lobby: data.lobby ?? "",
-      connectionId: socket.id,
-    };
-
-    lobbies[data.lobby][socket.id] = newPlayer;
-
-    // io.emit("playerUpdate", [lobbies, lobbies[socket.id]]);
-
-    const currentLobby = lobbies[data.lobby];
-
-    // console.log(currentLobby, "los");
-
-    for (let socketId in currentLobby) {
-      io.to(socketId).emit("playerUpdate", [currentLobby, socket.id]);
-
-      synchronize(socket, socketId, data);
-    }
-  });
-
-  socket.on("synchronize", (data) => {
-    const currentLobby = lobbies[data.lobby];
-    for (let socketId in currentLobby) synchronize(socket, socketId, data);
-  });
-
-  socket.on("addUser", (data) => {
-    users[socket.id] = {
-      playerId: randomString(5),
+    let user = {
+      id: data.id ?? randomString(5),
       name: data.name ?? randomString(5),
-      lobby: data.lobby ?? "",
+      lobby: data.lobby,
+      active: data.active,
       connectionId: socket.id,
     };
 
-    io.emit("userUpdate", users);
+    const res = await userService.uploadUser(user);
+    if (!res) exists = true;
+    else updateUser(user);
+
+    socket.emit("userCheck", { flag: exists, name: data.name });
   });
 
-  socket.on("roll", (data) => {
-    let currentLobby = lobbies[data.lobby];
+  socket.on("updateUser", (data) => {
+    updateUser(socket, data);
+  });
 
-    if (!currentLobby) return;
+  socket.on("synchronize", async (data) => {
+    const lobby = await lobbyService.findLobby({ lobby: data.lobby });
+    // console.log(lobby, "data");
 
-    for (let socketId in currentLobby)
-      if (socket.id !== socketId) {
-        io.to(socketId).emit("roll", {
+    synchronize(socket, { state: lobby.state, lobby: lobby.lobby });
+  });
+
+  socket.on("roll", async (data) => {
+    const users = await userService.findUser({ lobby: data.lobby });
+
+    users.forEach((user) => {
+      if (socket.id !== user.connectionId)
+        io.to(user.connectionId).emit("roll", {
           roll: data.roll,
           turn: data.turn,
           owner: data.owner,
         });
-      }
+    });
   });
 
+  // update state
   socket.on("state", (data) => {
-    state[data.lobby] = data;
+    // console.log("state Update called,");
+
+    updateState(socket, { state: data.state, lobby: data.lobby });
   });
 
-  socket.on("lobby", (data) => {
-    let lobby = data.lobby || randomString(20);
+  socket.on("lobby", async (data) => {
+    let lobbyData = {
+      lobby: data.lobby || randomString(20),
+      owner: data.owner,
+      state: {},
+      gameType: data.gameType || "local",
+      gameMode: data.gameMode || "4",
+      password: data.password || null,
+    };
 
-    lobbies[lobby] = {};
-    state[lobby] = [];
+    const res = await lobbyService.createLobby(lobbyData);
 
-    socket.emit("assignLobby", lobby);
+    socket.emit("assignLobby", lobbyData);
+  });
+
+  socket.on("lobbyData", async (data) => {
+    let lobbyData = {
+      lobby: data.lobby,
+      name: data.name,
+    };
+
+    updateLobby(socket, lobbyData);
   });
 
   socket.on("room", (data) => {
@@ -120,11 +165,12 @@ io.on("connection", (socket) => {
       });
   });
 
-  socket.on("destroyLobby", (data) => {
-    const currentLobby = lobbies[data];
-    for (let socketId in currentLobby)
-      io.to(socketId).emit("lobbyDeath", [currentLobby, socket.id]);
-    delete lobbies[data];
+  socket.on("destroyLobby", async (data) => {
+    let res = await lobbyService.deleteLobby({ lobby: data.lobby });
+
+    io.emit("lobbyDeath", { lobby: data.lobby });
+
+    return;
   });
 
   socket.on("resetLobby", (data) => {
@@ -134,22 +180,33 @@ io.on("connection", (socket) => {
     for (let socketId in currentLobby) io.to(socketId).emit("restart", {});
   });
 
-  socket.on("disconnect", (data) => {
-    const user = users[socket.id];
-    const lobby = user?.lobby || "";
+  socket.on("assignName", (data) => [
+    socket.emit("name", { name: randomString(5) }),
+  ]);
 
-    io.emit("disconnected", user);
+  socket.on("disconnect", async (data) => {
+    const user = await userService.findUser({ connectionId: socket.id });
 
-    delete users[socket.id];
+    const res = await userService.updateUser(
+      { active: false, lobby: null },
+      { connectionId: socket.id }
+    );
 
-    if (lobby !== "" && lobbies[lobby]) delete lobbies[lobby][socket.id];
+    if (!user[0]) return;
+    // console.log(user[0].name, "disconnected");
 
-    const currentLobby = lobbies[lobby];
-    if (lobby !== "" && lobbies[lobby])
-      for (let socketId in currentLobby)
-        io.to(socketId).emit("playerUpdate", [currentLobby, socket.id]);
+    let users = [];
 
-    socket.broadcast.emit("userUpdate", users);
+    users = await userService.findUser({ lobby: user[0].lobby });
+
+    if (user[0].lobby)
+      users.forEach((client) => {
+        if (client.connectionId !== socket.id)
+          io.to(client.connectionId).emit("disconnection", {
+            user: user[0],
+            users: users,
+          });
+      });
   });
 });
 
