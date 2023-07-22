@@ -33,7 +33,7 @@ exports.updateLobby = async (data, query) => {
   // console.log(data, query, "lob");
 
   try {
-    return await collection.updateOne(query, {
+    return await collection.findOneAndUpdate(query, {
       $set: data,
     });
   } catch (error) {

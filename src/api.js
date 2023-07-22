@@ -42,6 +42,10 @@ io.on("connection", (socket) => {
     user.findAndSync(io, socket, data);
   });
 
+  socket.on("syncClick", async (data) => {
+    user.findAndSyncClick(io, socket, data);
+  });
+
   // update state
   socket.on("state", (data) => {
     // console.log("state Update called,");
@@ -69,9 +73,6 @@ io.on("connection", (socket) => {
   });
 
   socket.on("resetLobby", (data) => {
-    const currentLobby = lobbies[data];
-    state[data] = [];
-
     for (let socketId in currentLobby) io.to(socketId).emit("restart", {});
   });
 
@@ -86,9 +87,12 @@ io.on("connection", (socket) => {
       { connectionId: socket.id }
     );
     if (!user[0]) return;
-    // console.log(user[0].name, "disconnected");
+    console.log(user[0].name, "disconnected");
     let users = [];
     users = await userService.findUser({ lobby: user[0].lobby });
+    if (users.length <= 0) {
+      lobbyService.deleteLobby(user[0].lobby);
+    }
     if (user[0].lobby)
       users.forEach((client) => {
         if (client.connectionId !== socket.id)

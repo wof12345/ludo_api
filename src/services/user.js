@@ -26,7 +26,7 @@ exports.updateUser = async (data, query) => {
 
   // console.log(data, query, "updat");
   try {
-    return await collection.updateOne(query, {
+    return await collection.findOneAndUpdate(query, {
       $set: data,
     });
   } catch (error) {

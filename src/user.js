@@ -12,6 +12,8 @@ async function create(socket, data) {
     connectionId: socket.id,
   };
 
+  console.log("created user", user.name);
+
   const res = await userService.uploadUser(user);
   if (!res) exists = true;
   else userService.updateUser(user);
@@ -19,7 +21,7 @@ async function create(socket, data) {
   socket.emit("userCheck", { flag: exists, name: data.name });
 }
 
-async function update(io,socket, data) {
+async function update(io, socket, data) {
   let user = {
     name: data.name ?? util.randomString(5),
     lobby: data.lobby,
@@ -28,25 +30,22 @@ async function update(io,socket, data) {
     updateTime: new Date().getTime(),
   };
 
-  console.log(user);
+  console.log("updated user", user.name);
 
   const res = await userService.updateUser(user);
 
   const users = await userService.findUser({ lobby: data.lobby, active: true });
 
   users.forEach((client) => {
-    io
-      .to(client.connectionId)
-      .emit("userUpdate", { users: users, user: user });
+    io.to(client.connectionId).emit("userUpdate", { users: users, user: user });
   });
 }
 
 async function findAndSync(io, socket, data) {
   const users = await userService.findUser({ lobby: data.lobby });
 
-  console.log(users);
-
   users.forEach((user) => {
+    console.log("synced user", user.name);
     if (socket.id !== user.connectionId)
       io.to(user.connectionId).emit("roll", {
         roll: data.roll,
@@ -56,4 +55,17 @@ async function findAndSync(io, socket, data) {
   });
 }
 
-exports.user = { create, update, findAndSync };
+async function findAndSyncClick(io, socket, data) {
+  const users = await userService.findUser({ lobby: data.lobby });
+
+  users.forEach((user) => {
+    console.log("synced user", user.name);
+    if (socket.id !== user.connectionId)
+      io.to(user.connectionId).emit("syncClick", {
+        roll: data.roll,
+        pawn: data.pawn,
+      });
+  });
+}
+
+exports.user = { create, update, findAndSync, findAndSyncClick };
