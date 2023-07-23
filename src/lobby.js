@@ -17,7 +17,7 @@ async function create(socket, data) {
 
   console.log("lobby created ", lobbyData.lobby);
 
-  socket.emit("assignLobby", lobbyData);
+  if (!data.room) socket.emit("assignLobby", lobbyData);
 }
 
 async function update(socket, data) {
@@ -46,8 +46,9 @@ async function state(socket, lobbyData) {
 
 async function createRoom(io, data) {
   const lobby = data.lobby || util.randomString(20);
+  const user = await userService.findUser({ connectionId: data.reciever });
   io.to(data.sender).emit("invited", {
-    reciever: data.reciever || null,
+    reciever: user.name || null,
     lobby: lobby,
   });
 

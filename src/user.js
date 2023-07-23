@@ -23,7 +23,7 @@ async function create(socket, data) {
 
 async function update(io, socket, data) {
   let user = {
-    name: data.name ?? util.randomString(5),
+    name: data.name || "",
     lobby: data.lobby,
     active: data.active,
     connectionId: socket.id,

@@ -66,6 +66,8 @@ io.on("connection", (socket) => {
     lobby.createRoom(io, data);
   });
 
+  socket.on("kick", (data) => [user.update()]);
+
   socket.on("destroyLobby", async (data) => {
     lobby.destroy(io, data);
 
@@ -93,14 +95,14 @@ io.on("connection", (socket) => {
     if (users.length <= 0) {
       lobbyService.deleteLobby(user[0].lobby);
     }
-    if (user[0].lobby)
-      users.forEach((client) => {
-        if (client.connectionId !== socket.id)
-          io.to(client.connectionId).emit("disconnection", {
-            user: user[0],
-            users: users,
-          });
-      });
+    // if (user[0].lobby)
+    users.forEach((client) => {
+      if (client.connectionId !== socket.id)
+        io.to(client.connectionId).emit("disconnection", {
+          user: user[0],
+          users: users,
+        });
+    });
   });
 });
 
