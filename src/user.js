@@ -25,17 +25,16 @@ async function update(io, socket, data) {
   let user = {
     name: data.name || "",
     lobby: data.lobby,
-    active: data.active,
+    active: data.active || false,
     connectionId: socket.id,
     updateTime: new Date().getTime(),
   };
-
-  console.log("updated user", user.name);
 
   const res = await userService.updateUser(user);
 
   const users = await userService.findUser({ lobby: data.lobby, active: true });
 
+  console.log("updated user", user.name);
   users.forEach((client) => {
     io.to(client.connectionId).emit("userUpdate", { users: users, user: user });
   });

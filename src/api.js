@@ -59,14 +59,18 @@ io.on("connection", (socket) => {
   });
 
   socket.on("lobbyData", async (data) => {
-    lobby.update(socket, data);
+    lobby.get(socket, data);
   });
 
   socket.on("room", (data) => {
     lobby.createRoom(io, data);
   });
 
-  socket.on("kick", (data) => [user.update()]);
+  socket.on("kick", (data) => {
+    console.log(data);
+
+    // user.update(data);
+  });
 
   socket.on("destroyLobby", async (data) => {
     lobby.destroy(io, data);

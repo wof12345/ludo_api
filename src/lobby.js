@@ -11,37 +11,34 @@ async function create(socket, data) {
     gameMode: data.gameMode || "4",
     password: data.password || null,
     time: new Date().getTime(),
+    room: data.room || false,
   };
 
   const res = await lobbyService.createLobby(lobbyData);
 
   console.log("lobby created ", lobbyData.lobby);
 
-  if (!data.room) socket.emit("assignLobby", lobbyData);
+  socket.emit("assignLobby", lobbyData);
 }
 
-async function update(socket, data) {
-  lobbyData = {
+async function get(socket, data) {
+  const res = await lobbyService.findLobby({
     lobby: data.lobby,
-    name: data.name,
-  };
-
-  const updateObj = lobbyData.data || { time: new Date().getTime() };
-  const res = await lobbyService.updateLobby(updateObj, {
-    lobby: lobbyData.lobby,
   });
 
-  const lobby = res.value;
-  console.log("lobby updated ", lobby);
+  const lobby = res;
+  console.log(lobby?.lobby, "info");
 
   socket.emit("lobbyInfo", lobby);
 }
 
 async function state(socket, lobbyData) {
   const updateObj = { state: lobbyData.state } || {};
+
   const res = await lobbyService.updateLobby(updateObj, {
     lobby: lobbyData.lobby,
   });
+  console.log("saved state ", res.lobby);
 }
 
 async function createRoom(io, data) {
@@ -87,4 +84,11 @@ async function destroy(io, data) {
   io.emit("lobbyDeath", { lobby: data.lobby });
 }
 
-exports.lobby = { create, update, state, synchronize, createRoom, destroy };
+exports.lobby = {
+  create,
+  state,
+  synchronize,
+  createRoom,
+  destroy,
+  get,
+};
