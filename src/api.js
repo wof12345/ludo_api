@@ -1,7 +1,10 @@
 const express = require("express");
 const http = require("http");
+const cors = require("cors");
+
 const app = express();
 const server = http.createServer(app);
+
 
 const userService = require("./services/user");
 const lobbyService = require("./services/lobby");
@@ -9,6 +12,16 @@ const lobbyService = require("./services/lobby");
 const { lobby } = require("./lobby");
 const { user } = require("./user");
 const { util } = require("./util");
+
+app.use(cors());
+
+const corsOptions = {
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
+
+app.use(cors(corsOptions));
 
 const port = process.env.PORT;
 
